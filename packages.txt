@@ -5,3 +5,4 @@ libffi-dev
 libpangocairo-1.0-0
 libpangoft2-1.0-0
 fontconfig
+poppler-utils
