@@ -1,0 +1,9 @@
+streamlit
+docling
+pymupdf4llm
+markdown 
+pdfkit 
+pymupdf 
+pypandoc
+weasyprint
+pdf2image
