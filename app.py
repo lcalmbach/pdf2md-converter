@@ -314,7 +314,7 @@ def display_pdf_preview(pdf_path):
     """Generate and display PDF preview using pdf2image"""
     images = convert_from_path(pdf_path)
     for i, image in enumerate(images):
-        st.image(image, caption=f'Page {i + 1}', use_container_width=True)
+        st.image(image, caption=f'Page {i + 1}', use_container_width=True, width=400)  # Adjust width to 50%
 
 # Create sample PDF from the markdown if it doesn't exist
 if not os.path.exists("sample_files/benchmark.pdf"):
