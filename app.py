@@ -13,6 +13,9 @@ import importlib.util
 import shutil
 from pdf2image import convert_from_path
 
+SAMPLE_PDF_DOCUMENT= Path("./sample_files/benchmark.pdf")
+SAMPLE_MARKDOWN_DOCUMENT = Path("./sample_files/benchmark.md")
+
 # Check for optional dependencies
 def is_package_installed(package_name):
     return importlib.util.find_spec(package_name) is not None
@@ -48,39 +51,6 @@ st.set_page_config(
 if not os.path.exists("sample_files"):
     os.makedirs("sample_files")
     
-# Create sample markdown and PDF files if they don't exist
-if not os.path.exists("sample_files/benchmark.md"):
-    with open("sample_files/benchmark.md", "w") as f:
-        f.write("""# Sample Markdown Document
-
-## Introduction
-This is a sample markdown document that demonstrates various formatting options.
-
-## Features
-- **Bold text**
-- *Italic text*
-- Lists like this one
-- [Links](https://www.example.com)
-
-## Code Example
-```python
-def hello_world():
-    print("Hello, World!")
-```
-
-## Table Example
-| Name | Age | Occupation |
-|------|-----|------------|
-| John | 30  | Developer  |
-| Jane | 25  | Designer   |
-
-## Quote
-> This is a blockquote. It can span multiple lines and is indented.
-
----
-
-Thanks for using the PDF-Markdown converter!
-""")
 
 def md_to_pdf(md_content, output_path):
     """Convert markdown to PDF using WeasyPrint"""
@@ -202,7 +172,7 @@ def pdf_to_md_pymupdf(pdf_path):
                             if font_size > 12:  # Arbitrary threshold - adjust as needed
                                 is_heading = True
                             
-                            text_blocks.append({
+                            text_blocks.appeSAMPLE_PDF_DOCUMENTnd({
                                 "text": line_text.strip(),
                                 "is_bold": is_bold,
                                 "is_heading": is_heading,
@@ -253,10 +223,7 @@ def pdf_to_md_pymupdf(pdf_path):
     # Some post-processing to clean up the text
     # Remove excess newlines
     md_content = re.sub(r'\n{3,}', '\n\n', md_content)
-    
-    return md_content
-
-def pdf_to_md_pandoc(pdf_path):
+    SAMPLE_PDF_DOCUMENT
     """Convert PDF to markdown using Pandoc"""
     if not PANDOC_AVAILABLE:
         return "Pandoc is not installed or not available. Please install Pandoc and ensure it's in your PATH."
@@ -312,20 +279,15 @@ def get_file_download_link(file_path, link_text):
 
 def display_pdf_preview(pdf_path):
     """Generate and display PDF preview using pdf2image"""
+    cols = st.columns(4)
+    with cols[0]:
+        width_pct = st.slider("Size", 10, 100, 50)-1
     images = convert_from_path(pdf_path)
     for i, image in enumerate(images):
-        st.image(image, caption=f'Page {i + 1}', use_container_width=True, width=400)  # Adjust width to 50%
+        cols = st.columns([width_pct / 100, 1 - (width_pct / 100)])
+        cols[0].image(image, caption=f'Page {i + 1}', use_container_width=True)
 
-# Create sample PDF from the markdown if it doesn't exist
-if not os.path.exists("sample_files/benchmark.pdf"):
-    try:
-        with open("sample_files/benchmark.md", "r") as f:
-            md_content = f.read()
-        md_to_pdf(md_content, "sample_files/benchmark.pdf")
-    except Exception as e:
-        st.warning(f"Could not create sample PDF: {str(e)}")
-
-# App UI
+# App UISAMPLE_PDF_DOCUMENT
 st.title("PDF ↔ Markdown Converter")
 
 # Instructions
@@ -388,9 +350,8 @@ file_path = None
 
 if conversion_type == "Markdown to PDF":
     if file_source == "Use benchmark file":
-        if os.path.exists("sample_files/benchmark.md"):
-            file_path = "sample_files/benchmark.md"
-            with open(file_path, "r") as f:
+        if os.path.exists(SAMPLE_MARKDOWN_DOCUMENT):
+            with open(SAMPLE_MARKDOWN_DOCUMENT, "r") as f:
                 input_content = f.read()
                 
             st.subheader("Benchmark Markdown Content")
@@ -410,12 +371,9 @@ if conversion_type == "Markdown to PDF":
                 file_path = temp_file.name
 else:  # PDF to Markdown
     if file_source == "Use benchmark file":
-        if os.path.exists("sample_files/benchmark.pdf"):
-            file_path = "sample_files/benchmark.pdf"
+        if os.path.exists(SAMPLE_PDF_DOCUMENT):
             st.subheader("Benchmark PDF Preview")
-            
-            # Display PDF preview
-            display_pdf_preview(file_path)
+            display_pdf_preview(SAMPLE_PDF_DOCUMENT)
         else:
             st.error("Benchmark PDF file not found.")
     else:  # Upload option
@@ -432,7 +390,7 @@ else:  # PDF to Markdown
                 display_pdf_preview(file_path)
 
 # Convert button
-if st.button("Convert", type="primary", disabled=not file_path):
+if st.button("Convert", type="primary"):
     with st.spinner("Converting..."):
         try:
             if conversion_type == "Markdown to PDF":
