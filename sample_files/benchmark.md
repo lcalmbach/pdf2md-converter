@@ -23,7 +23,3 @@ def hello_world():
 
 ## Quote
 > This is a blockquote. It can span multiple lines and is indented.
-
----
-
-Thanks for using the PDF-Markdown converter!

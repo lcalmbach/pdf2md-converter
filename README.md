@@ -59,3 +59,21 @@ To contribute to this project, follow these steps:
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Conversion Package Comparison 
+
+| Feature | PyMuPDF | Pandoc | PyMuPDF4LLM | Docling |
+|---------|---------|--------|-------------|---------|
+| Table detection | ⭐⭐☆ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐☆ |
+| List detection | ⭐⭐☆ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+| Structure preservation | ⭐⭐☆ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+| Image handling | ⭐☆☆ | ⭐⭐☆ | ⭐⭐☆ | ⭐⭐⭐ |
+| Formula detection | ☆☆☆ | ⭐⭐☆ | ⭐⭐⭐ | ⭐⭐☆ |
+| Speed | ⭐⭐⭐ | ⭐⭐☆ | ⭐⭐☆ | ⭐☆☆ |
+| Dependencies | Minimal | Requires Pandoc | Moderate | Extensive |
+
+**Additional notes:**
+- **PyMuPDF**: Fast with minimal dependencies but may struggle with complex formatting
+- **Pandoc**: Excellent all-around converter but requires external Pandoc installation
+- **PyMuPDF4LLM**: Optimized for creating LLM-friendly markdown from PDFs with good structure detection
+- **Docling**: Advanced document understanding with semantic analysis, but may be slower
