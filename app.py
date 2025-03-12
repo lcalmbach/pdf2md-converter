@@ -20,7 +20,7 @@ SAMPLE_PDF_DOCUMENT= Path("./sample_files/benchmark.pdf")
 SAMPLE_MARKDOWN_DOCUMENT = Path("./sample_files/benchmark.md")
 
 conversion_menu = {
-    "PDF to Markdown": ["PyMuPDF", "PyMuPDF4LLM", "Docling"],
+    "PDF to Markdown": ["PyMuPDF", "PyMuPDF4LLM", "Docling", "PDFplumber+ChatGPT4o"],
     "Markdown to PDF": ["WeasyPrint", "Pandoc"]
 }
 

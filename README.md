@@ -4,7 +4,7 @@ This repository contains a tool for converting PDF files to Markdown format and 
 
 ## Requirements
 
-The following Python packages are required:
+The following Python packages are required (included in requirements.txt):
 
 - streamlit
 - docling
@@ -14,6 +14,8 @@ The following Python packages are required:
 - pymupdf
 - pypandoc
 - weasyprint
+- [pdfplumber](https://github.com/jsvine/pdfplumber) 
+- openai
 
 ## Installation
 
@@ -29,13 +31,19 @@ The following Python packages are required:
     ```
 
 ## Usage
-
-To convert a PDF file to Markdown, run the following command:
-```sh
-python convert.py input.pdf output.md
+```
+>.venv/scripts/activate (Windows) or
+>.venv/scripts/activate (Linux)
+>(.venv)streamlit run app.py
 ```
 
-Replace `input.pdf` with the path to your PDF file and `output.md` with the desired output Markdown file path.
+Use the demo files to get a first impression and compress the `convert` button.
+
+Then change the file source to *Upload my own file* and upload your file, press `convert` button again.
+
+## Combined Text-Extraction and Markdown-Conversion using ChatGPT
+The pdfplumber + ChatGPT option all
+
 
 ## Development
 

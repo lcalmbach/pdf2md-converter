@@ -7,3 +7,5 @@ pymupdf
 pypandoc
 weasyprint
 pdf2image
+pdfplumber
+openai
