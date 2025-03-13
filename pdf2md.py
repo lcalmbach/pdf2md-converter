@@ -14,6 +14,7 @@ import shutil
 from pdf2image import convert_from_path
 import subprocess
 import os
+import io
 import pymupdf4llm
 from docling.document_converter import DocumentConverter
 import openai
@@ -175,7 +176,51 @@ class Converter():
                 structured_text.append("\n---\n")  # Page separator
         return "\n".join(structured_text)
     
-    
+
+    def openai_vision_conversion(self):
+
+        client = openai.OpenAI()
+        # Convert PDF pages to images
+        images = convert_from_path(self.input_path, dpi=300)
+        markdown_text = ""
+
+        for i, image in enumerate(images):
+            # Convert PIL image to bytes
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+
+            # Encode image in base64
+            base64_image = base64.b64encode(img_byte_arr).decode("utf-8")
+
+            prompt = "Extract the text content from the image below conserving structural elements like titles, code and tables and return the text formatted in markdown."
+            # Call OpenAI's GPT-4 with vision capabilities
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            { "type": "text", "text": f"{prompt}" },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            )
+            # Extract text from the response
+            page_text = response.choices[0].message.content
+
+            # Append to the markdown text with a page separator
+            markdown_text += f"\n\n## Page {i + 1}\n\n{page_text}\n\n"
+
+        return markdown_text
+
+
     def openai_conversion(self, text):
         """Sends structured text to OpenAI to enhance Markdown formatting."""
         client = openai.OpenAI()
@@ -204,9 +249,11 @@ class Converter():
             md_content = self.docling_conversion()
         elif self.lib.lower() == 'pymupdf4llm':
             md_content = self.pymupdf4llm_conversion()
-        elif self.lib.lower() == 'pdfplumber+chatgpt4o':
+        elif self.lib.lower() == 'pdfplumber+chatgpt-4o':
             md_content = self.pdfplumber_conversion()
             md_content = self.openai_conversion(md_content)
+        elif self.lib.lower() == 'chatgpt-4o-vision':
+            md_content = self.openai_vision_conversion()
         else:
             md_content = self.pymupdf_conversion()
         with open(self.output_path, "w") as f:
