@@ -193,7 +193,7 @@ class Converter():
             # Encode image in base64
             base64_image = base64.b64encode(img_byte_arr).decode("utf-8")
 
-            prompt = "Extract the text content from the image below conserving structural elements like titles, code and tables and return the text formatted in markdown."
+            prompt = "Extract the text content from the provided image while preserving structural elements such as titles, headings, lists, code blocks, and tables. Format the output in valid Markdown without enclosing the entire content within triple backticks. Maintain the original hierarchy of headings and ensure correct Markdown syntax for all elements."
             # Call OpenAI's GPT-4 with vision capabilities
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -236,7 +236,8 @@ class Converter():
                 "- Any section breaks, page numbers, and special characters are kept as-is.\n"
                 "- Inline formatting (bold, italic) is preserved if present.\n"
                 "- Code blocks are wrapped in triple backticks if detected.\n"
-                "The goal is to reproduce the document in Markdown EXACTLY as it appears in the extracted text."
+                "The goal is to reproduce the document in Markdown EXACTLY as it appears in the extracted text.\n"
+                "Format the output in valid Markdown without enclosing the entire content within triple backticks. Maintain the original hierarchy of headings and ensure correct Markdown syntax for all elements."
             )},
                     {"role": "user", "content": text}]
         )

@@ -34,7 +34,7 @@ PYMUPDF4LLM_AVAILABLE = is_package_installed("pymupdf4llm")
 if PYMUPDF4LLM_AVAILABLE:
     import pymupdf4llm
 
-# Check for docling
+# Check for docling                    {"role": "user", "content": text
 DOCLING_AVAILABLE = is_package_installed("docling")
 if DOCLING_AVAILABLE:
     import docling
@@ -184,7 +184,7 @@ if st.button("Convert", type="primary"):
 
 # App footer
 st.markdown("---")
-st.markdown("PDF-Markdown Converter v 0.0.3| Made with Streamlit | [git repo](https://github.com/lcalmbach/pdf2md-converter)")
+st.markdown("PDF-Markdown Converter v 0.1.0| Made with Streamlit | [git repo](https://github.com/lcalmbach/pdf2md-converter)")
 
 # Cleanup temporary files on session end
 def cleanup():
