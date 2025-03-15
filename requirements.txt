@@ -9,3 +9,4 @@ weasyprint
 pdf2image
 pdfplumber
 openai
+mistralai

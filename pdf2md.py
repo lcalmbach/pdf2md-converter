@@ -1,4 +1,3 @@
-import streamlit as st
 import os
 import base64
 from pathlib import Path
@@ -19,18 +18,49 @@ import pymupdf4llm
 from docling.document_converter import DocumentConverter
 import openai
 import pdfplumber
+from mistralai import Mistral
+from PIL import Image
+
+IMAGE_FOLDER = Path("./images")
+if not IMAGE_FOLDER.exists():
+    IMAGE_FOLDER.mkdir()
 
 class Converter():
-    def __init__(self, lib: str, input_path):
+    def __init__(self, lib: str, input_file: Path):
         self.lib = lib
-        self.input_path = input_path
-        output_file = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
-        output_file.close()
-        self.output_path = output_file.name
+        self.input_file = input_file
+        fd, temp_path = tempfile.mkstemp(suffix=".md")
+        self.output_file = Path(temp_path)  # Store as Path object for easy handling
+        self.doc_image_folder = Path(f'{IMAGE_FOLDER}/{self.output_file.stem}')
+        self.doc_image_folder.mkdir(parents=True, exist_ok=True)
+        self.md_content = ""
+        self.create_image_zip_file = False
+    
+
+    def extract_images_from_pdf(self):
+        pdf_document = fitz.open(self.input_file)
+        
+        # Iterate through the pages
+        for page_num in range(len(pdf_document)):
+            page = pdf_document.load_page(page_num)
+            images = page.get_images(full=True)
+
+            # Iterate through the images on the page
+            for img_index, img in enumerate(images):
+                xref = img[0]
+                base_image = pdf_document.extract_image(xref)
+                image_bytes = base_image["image"]
+                image = Image.open(io.BytesIO(image_bytes))
+
+                # Save the image
+                image_path = self.doc_image_folder / f'img_{img_index}.png'
+                image.save(image_path)
+                print(f"Saved image to {image_path}")
+
 
     def pymupdf_conversion(self):
         """Convert PDF to markdown using PyMuPDF (fitz) for text extraction and custom formatting"""
-        doc = fitz.open(self.input_path)
+        doc = fitz.open(self.input_file)
         text_blocks = []
         for page_num in range(len(doc)):
             page = doc[page_num]
@@ -119,22 +149,22 @@ class Converter():
     def pymupdf4llm_conversion(self):
         """Convert PDF to markdown using pymupdf4llm"""
         try:
-            md_content = pymupdf4llm.to_markdown(self.input_path)
+            md_content = pymupdf4llm.to_markdown(self.input_file)
             return md_content
         except Exception as e:
-            st.error(f"pymupdf4llm conversion error: {str(e)}")
+            print(f"pymupdf4llm conversion error: {str(e)}")
             return f"Conversion with pymupdf4llm failed: {str(e)}"
 
     def docling_conversion(self):
         """Convert PDF to markdown using docling"""
         try:
             doc = DocumentConverter()
-            conversion_result = doc.convert(self.input_path)
+            conversion_result = doc.convert(self.input_file)
             md_content = conversion_result.document.export_to_markdown()
             return md_content
 
         except Exception as e:
-            st.error(f"docling conversion error: {str(e)}")
+            print(f"docling conversion error: {str(e)}")
             return f"Conversion with docling failed: {str(e)}"
 
 
@@ -142,7 +172,7 @@ class Converter():
         """Extracts text with headings and tables from a PDF while maintaining structure."""
         structured_text = []
         
-        with pdfplumber.open(self.input_path) as pdf:
+        with pdfplumber.open(self.input_file) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 text_blocks = page.extract_words()  # Extract text blocks
                 char_data = page.objects.get("char", [])  # Get character-level metadata
@@ -178,10 +208,9 @@ class Converter():
     
 
     def openai_vision_conversion(self):
-
         client = openai.OpenAI()
         # Convert PDF pages to images
-        images = convert_from_path(self.input_path, dpi=300)
+        images = convert_from_path(self.input_file, dpi=300)
         markdown_text = ""
 
         for i, image in enumerate(images):
@@ -244,18 +273,86 @@ class Converter():
         markdown_content = response.choices[0].message.content
         return markdown_content
 
+
+    def mistralai_conversion_old(self):
+        images = convert_from_path(self.input_file, dpi=300)
+        markdown_text = ""
+        api_key = os.environ["MISTRAL_API_KEY"]
+        client = Mistral(api_key=api_key)
+        
+        for i, image in enumerate(images):
+            # Convert PIL image to bytes
+            img_byte_arr = io.BytesIO()
+            image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            base64_image = base64.b64encode(img_byte_arr).decode("utf-8")
+
+            ocr_response = client.ocr.process(
+                model="mistral-ocr-latest",
+                document={
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{base64_image}" 
+                }
+                
+            )
+            markdown_text += f"\n\n## Page {i + 1}\n\n{ocr_response.pages[0].markdown}\n\n"
+
+        return markdown_text
+
+    def mistralai_conversion(self):
+        def transform_image_references(text):
+            pattern = r"!\[(.*?)\]\((img-\d+)\.(jpeg|jpg|png|gif)\)"
+            
+            def replace_match(match):
+                filename = match.group(2)  # Extract "img-12"
+                extension = match.group(3)  # Extract "jpeg"
+                new_filename = filename.replace("-", "_") + ".png"
+                return f"![{new_filename}]({IMAGE_FOLDER}/{new_filename})"
+            
+            return re.sub(pattern, replace_match, text)
+        
+        api_key = os.environ["MISTRAL_API_KEY"]
+        client = Mistral(api_key=api_key)
+        print(self.input_file.name)
+        uploaded_pdf = client.files.upload(
+            file={
+                "file_name": self.input_file.name,
+                "content": open(self.input_file, "rb"),
+            },
+            purpose="ocr"
+        )  
+        signed_url = client.files.get_signed_url(file_id=uploaded_pdf.id)
+        ocr_response = client.ocr.process(
+            model="mistral-ocr-latest",
+            document={
+                "type": "document_url",
+                "document_url": signed_url.url,
+            }
+        )
+        pages = [page.markdown for page in ocr_response.pages]
+        markdown_text = '\n\n'.join(pages)
+        markdown_text = transform_image_references(markdown_text)
+        return markdown_text
+
+    def get_zipped_images(self):
+        shutil.make_archive(self.doc_image_folder, 'zip', self.doc_image_folder)
+        return f"{self.doc_image_folder}.zip"
+    
     def convert(self):
         md_content = ""
         if self.lib.lower() == 'docling':
-            md_content = self.docling_conversion()
+            self.md_content = self.docling_conversion()
         elif self.lib.lower() == 'pymupdf4llm':
-            md_content = self.pymupdf4llm_conversion()
+            self.md_content = self.pymupdf4llm_conversion()
         elif self.lib.lower() == 'pdfplumber+chatgpt-4o':
-            md_content = self.pdfplumber_conversion()
-            md_content = self.openai_conversion(md_content)
+            self.md_content = self.pdfplumber_conversion()
+            self.md_content = self.openai_conversion(md_content)
         elif self.lib.lower() == 'chatgpt-4o-vision':
-            md_content = self.openai_vision_conversion()
+            self.md_content = self.openai_vision_conversion()
+        elif self.lib.lower() == 'mistral-ocr':
+            self.md_content = self.mistralai_conversion()
+            self.extract_images_from_pdf()
         else:
-            md_content = self.pymupdf_conversion()
-        with open(self.output_path, "w") as f:
-            f.write(md_content)
+            self.md_content = self.pymupdf_conversion()
+        with open(self.output_file, "w") as f:
+            f.write(self.md_content)

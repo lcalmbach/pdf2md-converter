@@ -19,9 +19,10 @@ import md2pdf
 
 SAMPLE_PDF_DOCUMENT= Path("./sample_files/benchmark.pdf")
 SAMPLE_MARKDOWN_DOCUMENT = Path("./sample_files/benchmark.md")
+MAX_PAGES_PREVIEW = 2  # max number of pages for pdf docs to preview in order not to crash the app on streamlit community cloud
 
 conversion_menu = {
-    "PDF to Markdown": ["PyMuPDF", "PyMuPDF4LLM", "Docling", "PDFplumber+ChatGPT-4o", "ChatGPT-4o-vision"],
+    "PDF to Markdown": ["PyMuPDF", "PyMuPDF4LLM", "Docling", "PDFplumber+ChatGPT-4o", "ChatGPT-4o-vision", "Mistral-OCR"],
     "Markdown to PDF": ["WeasyPrint", "Pandoc"]
 }
 
@@ -53,8 +54,7 @@ PANDOC_AVAILABLE = is_pandoc_available()
 def get_md_sample_file_content(file_path):
     if os.path.exists(file_path):
         with open(file_path, "r") as f:
-            input_content = f.read()
-            
+            input_content = f.read()            
         return input_content
     else:
         st.error("Benchmark markdown file not found.")
@@ -70,28 +70,28 @@ def create_download_link(content, filename, text):
     href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">{text}</a>'
     return href
 
-def get_file_download_link(file_path, link_text):
+def get_file_download_link(file_path, link_text: str):
     """Generate a download link for an existing file"""
-    with open(file_path, "rb") as f:
-        bytes_data = f.read()
-    b64 = base64.b64encode(bytes_data).decode()
-    mime_type = "application/pdf" if file_path.endswith(".pdf") else "text/markdown"
-    filename = os.path.basename(file_path)
-    href = f'<a href="data:file/{mime_type};base64,{b64}" download="{filename}">{link_text}</a>'
-    return href
+    if file_path.exists():
+        with file_path.open("rb") as f:
+            bytes_data = f.read()
+        b64 = base64.b64encode(bytes_data).decode()
+        mime_type = "application/pdf" if file_path.suffix == ".pdf" else "text/markdown"
+        filename = os.path.basename(file_path)
+        href = f'<a href="data:file/{mime_type};base64,{b64}" download="{filename}">{link_text}</a>'
+        return href
 
-def preview(file_path: str):
-    file_path = str(file_path)
-    if file_path.endswith(".pdf"):
+def preview(file_path: Path):
+    if file_path.suffix == ".pdf":
         cols = st.columns(4)
         with cols[0]:
             width_pct = st.slider("PDF Preview Size", 10, 100, 50)-1
-        images = convert_from_path(file_path)
+        images = convert_from_path(str(file_path), last_page = MAX_PAGES_PREVIEW -1)
         for i, image in enumerate(images):
             cols = st.columns([width_pct / 100, 1 - (width_pct / 100)])
             cols[0].image(image, caption=f'Page {i + 1}', use_container_width=True)
-    elif file_path.endswith(".md"):
-        with open(file_path, "r") as f:
+    elif file_path.suffix == ".md":
+        with file_path.open("r") as f:
             content = f.read()
         st.markdown(content)
 
@@ -134,7 +134,6 @@ file_source = st.radio(
 
 uploaded_file = None
 file_path = None
-converter = None
 if conversion_type == "Markdown to PDF":
     if file_source == "Use benchmark file":
         file_path = SAMPLE_MARKDOWN_DOCUMENT
@@ -146,54 +145,53 @@ if conversion_type == "Markdown to PDF":
             with tempfile.NamedTemporaryFile(delete=False, suffix=".md") as temp_file:
                 temp_file.write(uploaded_file.getvalue())
                 file_path = temp_file.name    
-    with st.expander("Preview Markdown Input File"):
-        preview(file_path)
-    converter = md2pdf.Converter(conversion_package, file_path)
+    if "converter" in st.session_state:
+        st.session_state.converter.lib = conversion_package
+        st.session_state.converter.input_path = file_path
+    else:
+        st.session_state.converter = md2pdf.Converter(conversion_package, file_path)
     
 else:  # PDF to Markdown
     if file_source == "Use benchmark file":
-        if os.path.exists(SAMPLE_PDF_DOCUMENT):
-            file_path = SAMPLE_PDF_DOCUMENT
-        else:
-            st.error("Benchmark PDF file not found.")
+        file_path = SAMPLE_PDF_DOCUMENT
     else:  # Upload option
+        file_path = None
         uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
         if uploaded_file:
             # Save uploaded file to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
                 temp_file.write(uploaded_file.getvalue())
-                file_path = temp_file.name
-                
+                file_path = Path(temp_file.name)
             # Display PDF preview in an expander
             st.subheader("Uploaded PDF Preview")
-    with st.expander("Preview PDF Input File"):
-        preview(file_path)
-    converter = pdf2md.Converter(conversion_package, file_path)
+    get_image_zip_file = st.checkbox("Get image zip file")
+    if "converter" in st.session_state:
+        st.session_state.converter.lib = conversion_package
+        st.session_state.converter.input_file = file_path
+    else:
+        st.session_state.converter = pdf2md.Converter(conversion_package, file_path)
+    st.session_state.converter.get_image_zip_file = get_image_zip_file
 
+if file_path:
+    with st.expander("Preview Input File"):
+        preview(st.session_state.converter.input_file)    
 
 # Convert button
 if st.button("Convert", type="primary"):
     with st.spinner("Converting..."):
         try:
-            converter.convert()
-            with st.expander("Preview Output File"):
-                preview(converter.output_path)
-            st.markdown(get_file_download_link(converter.output_path, "📥 Download Converted File"), unsafe_allow_html=True)
+            st.session_state.converter.convert()
         except Exception as e:
             st.error(f"Conversion failed: {str(e)}")
+if st.session_state.converter.md_content:
+    with st.expander("Preview Output File"):
+        preview(st.session_state.converter.output_file)
+        st.markdown(
+            get_file_download_link(st.session_state.converter.output_file, 
+            "📥 Download Converted File"), 
+            unsafe_allow_html=True
+        )
 
 # App footer
 st.markdown("---")
-st.markdown("PDF-Markdown Converter v 0.1.0| Made with Streamlit | [git repo](https://github.com/lcalmbach/pdf2md-converter)")
-
-# Cleanup temporary files on session end
-def cleanup():
-    if 'output_path' in locals():
-        try:
-            os.unlink(converter.output_path)
-        except:
-            pass
-
-# Register cleanup function
-import atexit
-atexit.register(cleanup)
+st.markdown("PDF-Markdown Converter v 0.1.1| Made with Streamlit | [git repo](https://github.com/lcalmbach/pdf2md-converter)")
