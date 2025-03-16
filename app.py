@@ -17,6 +17,7 @@ import pdf2md
 import md2pdf
 
 
+
 SAMPLE_PDF_DOCUMENT= Path("./sample_files/benchmark.pdf")
 SAMPLE_MARKDOWN_DOCUMENT = Path("./sample_files/benchmark.md")
 MAX_PAGES_PREVIEW = 2  # max number of pages for pdf docs to preview in order not to crash the app on streamlit community cloud
@@ -26,30 +27,6 @@ conversion_menu = {
     "Markdown to PDF": ["WeasyPrint", "Pandoc"]
 }
 
-# Check for optional dependencies
-def is_package_installed(package_name):
-    return importlib.util.find_spec(package_name) is not None
-
-# Check for pymupdf4llm
-PYMUPDF4LLM_AVAILABLE = is_package_installed("pymupdf4llm")
-if PYMUPDF4LLM_AVAILABLE:
-    import pymupdf4llm
-
-# Check for docling                    {"role": "user", "content": text
-DOCLING_AVAILABLE = is_package_installed("docling")
-if DOCLING_AVAILABLE:
-    import docling
-
-# Check if pandoc is installed
-def is_pandoc_available():
-    try:
-        # Try to get the version, which will throw an exception if pandoc is not available
-        pypandoc.get_pandoc_version()
-        return True
-    except (OSError, ImportError, RuntimeError):
-        return False
-
-PANDOC_AVAILABLE = is_pandoc_available()
 
 def get_md_sample_file_content(file_path):
     if os.path.exists(file_path):
@@ -69,17 +46,6 @@ def create_download_link(content, filename, text):
     b64 = base64.b64encode(content).decode()
     href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">{text}</a>'
     return href
-
-def get_file_download_link(file_path, link_text: str):
-    """Generate a download link for an existing file"""
-    if file_path.exists():
-        with file_path.open("rb") as f:
-            bytes_data = f.read()
-        b64 = base64.b64encode(bytes_data).decode()
-        mime_type = "application/pdf" if file_path.suffix == ".pdf" else "text/markdown"
-        filename = os.path.basename(file_path)
-        href = f'<a href="data:file/{mime_type};base64,{b64}" download="{filename}">{link_text}</a>'
-        return href
 
 def preview(file_path: Path):
     if file_path.suffix == ".pdf":
@@ -107,7 +73,7 @@ if not os.path.exists("sample_files"):
     
 
 # ------------------------------------------------------------------------------------------------------
-# App UISAMPLE_PDF_DOCUMENT
+# App UI SAMPLE_PDF_DOCUMENT
 # ------------------------------------------------------------------------------------------------------
 
 st.title("PDF ↔ Markdown Converter")
@@ -164,34 +130,34 @@ else:  # PDF to Markdown
                 file_path = Path(temp_file.name)
             # Display PDF preview in an expander
             st.subheader("Uploaded PDF Preview")
-    get_image_zip_file = st.checkbox("Get image zip file")
+    
     if "converter" in st.session_state:
         st.session_state.converter.lib = conversion_package
         st.session_state.converter.input_file = file_path
     else:
         st.session_state.converter = pdf2md.Converter(conversion_package, file_path)
-    st.session_state.converter.get_image_zip_file = get_image_zip_file
+    if st.session_state.converter.has_image_extraction(): 
+        create_image_zip_file = st.checkbox("Get image zip file")
+        st.session_state.converter.create_image_zip_file = create_image_zip_file
 
 if file_path:
     with st.expander("Preview Input File"):
         preview(st.session_state.converter.input_file)    
 
-# Convert button
 if st.button("Convert", type="primary"):
     with st.spinner("Converting..."):
         try:
             st.session_state.converter.convert()
         except Exception as e:
             st.error(f"Conversion failed: {str(e)}")
+
 if st.session_state.converter.md_content:
     with st.expander("Preview Output File"):
         preview(st.session_state.converter.output_file)
         st.markdown(
-            get_file_download_link(st.session_state.converter.output_file, 
-            "📥 Download Converted File"), 
+            st.session_state.converter.get_file_download_link("📥 Download Converted File"), 
             unsafe_allow_html=True
         )
 
-# App footer
 st.markdown("---")
-st.markdown("PDF-Markdown Converter v 0.1.1| Made with Streamlit | [git repo](https://github.com/lcalmbach/pdf2md-converter)")
+st.markdown("PDF-Markdown Converter v 0.1.2| Made with Streamlit | [git repo](https://github.com/lcalmbach/pdf2md-converter)")

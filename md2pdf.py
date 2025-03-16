@@ -9,8 +9,6 @@ import pypandoc
 import re
 from weasyprint import HTML, CSS
 from weasyprint.text.fonts import FontConfiguration
-import importlib.util
-from pdf2image import convert_from_path
 import subprocess
 import os
 from PIL import Image

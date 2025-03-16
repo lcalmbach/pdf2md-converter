@@ -20,6 +20,7 @@ import openai
 import pdfplumber
 from mistralai import Mistral
 from PIL import Image
+import zipfile
 
 IMAGE_FOLDER = Path("./images")
 if not IMAGE_FOLDER.exists():
@@ -36,26 +37,30 @@ class Converter():
         self.md_content = ""
         self.create_image_zip_file = False
     
-
+    def has_image_extraction(self):
+        return self.lib.lower() in ['mistral-ocr']
+    
     def extract_images_from_pdf(self):
         pdf_document = fitz.open(self.input_file)
-        
+        img_index=0
         # Iterate through the pages
         for page_num in range(len(pdf_document)):
             page = pdf_document.load_page(page_num)
             images = page.get_images(full=True)
-
             # Iterate through the images on the page
-            for img_index, img in enumerate(images):
-                xref = img[0]
-                base_image = pdf_document.extract_image(xref)
-                image_bytes = base_image["image"]
-                image = Image.open(io.BytesIO(image_bytes))
-
-                # Save the image
-                image_path = self.doc_image_folder / f'img_{img_index}.png'
-                image.save(image_path)
-                print(f"Saved image to {image_path}")
+            for i, img in enumerate(images):
+                try:
+                    xref = img[0]
+                    base_image = pdf_document.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image = Image.open(io.BytesIO(image_bytes))
+                    # Save the image
+                    image_path = self.doc_image_folder / f'img_{img_index}.png'
+                    print(image_path.name)
+                    image.save(image_path)
+                except Exception as e:
+                    print(f"Error extracting image: {str(e)}")    
+                img_index += 1
 
 
     def pymupdf_conversion(self):
@@ -273,32 +278,6 @@ class Converter():
         markdown_content = response.choices[0].message.content
         return markdown_content
 
-
-    def mistralai_conversion_old(self):
-        images = convert_from_path(self.input_file, dpi=300)
-        markdown_text = ""
-        api_key = os.environ["MISTRAL_API_KEY"]
-        client = Mistral(api_key=api_key)
-        
-        for i, image in enumerate(images):
-            # Convert PIL image to bytes
-            img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format='PNG')
-            img_byte_arr = img_byte_arr.getvalue()
-            base64_image = base64.b64encode(img_byte_arr).decode("utf-8")
-
-            ocr_response = client.ocr.process(
-                model="mistral-ocr-latest",
-                document={
-                    "type": "image_url",
-                    "image_url": f"data:image/jpeg;base64,{base64_image}" 
-                }
-                
-            )
-            markdown_text += f"\n\n## Page {i + 1}\n\n{ocr_response.pages[0].markdown}\n\n"
-
-        return markdown_text
-
     def mistralai_conversion(self):
         def transform_image_references(text):
             pattern = r"!\[(.*?)\]\((img-\d+)\.(jpeg|jpg|png|gif)\)"
@@ -313,7 +292,6 @@ class Converter():
         
         api_key = os.environ["MISTRAL_API_KEY"]
         client = Mistral(api_key=api_key)
-        print(self.input_file.name)
         uploaded_pdf = client.files.upload(
             file={
                 "file_name": self.input_file.name,
@@ -334,9 +312,45 @@ class Converter():
         markdown_text = transform_image_references(markdown_text)
         return markdown_text
 
+    def zip_markdown_doc_with_images(self):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip_file:
+            temp_zip_path = Path(tmp_zip_file.name)  # Get the temp file path
+
+        with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Add the output file to the root of the zip archive
+            if self.output_file.exists():
+                zipf.write(self.output_file, self.output_file.name)
+
+            # Add image files inside "images/" directory in the zip archive
+            if self.doc_image_folder.exists():
+                for root, _, files in os.walk(self.doc_image_folder):
+                    for file in files:
+                        file_path = Path(root) / file
+                        zipf.write(file_path, Path("images") / file)
+        return Path(temp_zip_path)
+
     def get_zipped_images(self):
         shutil.make_archive(self.doc_image_folder, 'zip', self.doc_image_folder)
         return f"{self.doc_image_folder}.zip"
+    
+    def get_file_download_link(self, link_text: str):
+        """Generate a download link for an existing file"""
+        if self.create_image_zip_file and self.output_file.exists():
+            zip_file = self.zip_markdown_doc_with_images()
+            with zip_file.open("rb") as f:
+                bytes_data = f.read()
+            b64 = base64.b64encode(bytes_data).decode()
+            mime_type = "application/zip"
+            href = f'<a href="data:file/{mime_type};base64,{b64}" download="{zip_file.name}">{link_text}</a>'
+            return href
+        elif self.output_file.exists():
+            with self.output_file.open("rb") as f:
+                bytes_data = f.read()
+            b64 = base64.b64encode(bytes_data).decode()
+            mime_type = "application/pdf" if self.output_file.suffix == ".pdf" else "text/markdown"
+            filename = os.path.basename(self.output_file)
+            href = f'<a href="data:file/{mime_type};base64,{b64}" download="{filename}">{link_text}</a>'
+            return href
     
     def convert(self):
         md_content = ""
